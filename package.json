@@ -17,11 +17,11 @@
     "chat",
     "collab",
     "grok",
-    "xai"
+    "multi-persona"
   ],
   "author": "",
   "license": "MIT",
-  "description": "Collaborative chat MVP with Grok (xAI) as a participant with personas",
+  "description": "Collaborative chat app with AI personas and rich features",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.10.0",

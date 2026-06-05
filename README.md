@@ -1,6 +1,6 @@
 # collab • grok
 
-Real-time collaborative chat for up to 4 humans + Grok (xAI) as a thoughtful participant.
+Real-time collaborative chat for up to 4 humans + Grok as a thoughtful participant (bring your own Grok API key).
 
 Modern, low-latency web UI. Designed for fast throw-together MVPs and remote collaboration (different cities/states, same country).
 
@@ -8,7 +8,7 @@ Modern, low-latency web UI. Designed for fast throw-together MVPs and remote col
 
 - **Shared conversation** — Everyone sees the same thread in real time via WebSockets.
 - **Personas** — Each collaborator declares their lens/perspective. Grok sees them and respects different viewpoints.
-- **Grok as participant** — Uses your own xAI API key. Grok is explicitly prompted **not** to reply to everything. It only speaks when it has ideas, objections, synthesis, or questions.
+- **Grok as participant** — Uses your own Grok API key (from xAI). Grok is explicitly prompted **not** to reply to everything. It only speaks when it has ideas, objections, synthesis, or questions. (You control all costs.)
 - **Typing indicators** — See "Alice is typing..." and **"Grok is thinking..."**.
 - **Summon button** — Force Grok to contribute right now.
 - **Auto vs manual** — Toggle Grok auto-participation.
@@ -20,9 +20,9 @@ Modern, low-latency web UI. Designed for fast throw-together MVPs and remote col
 
 ## Quick Start
 
-1. **Get an xAI API key**
+1. **Get a Grok API key** (from xAI)
    - Go to https://x.ai/api or https://console.grok.com (or wherever the current console lives).
-   - Create a key.
+   - Create a key. This is the only recurring cost.
 
 2. **Clone / use this folder**
    ```bash
@@ -89,7 +89,7 @@ No accounts, no central service. Your data, your key, your machine (or VPS).
   - A human-readable dense MD summary
   - A structured JSON with decisions, facts, open questions, per-persona views, etc.
 - Files land in `./context-packs/` on the machine running the server.
-- To resume later: just start a brand new room (or same one) and paste the context pack content as the first "system" message to a fresh Grok, or simply continue in the persistent room (history is saved in `data/rooms/`).
+- To resume later: just start a brand new room (or same one) and paste the context pack content as the first "system" message to a fresh Grok, or simply continue in the persistent room (full history is saved in the SQLite DB at DB_PATH).
 
 ## Tech Notes (for hackers)
 
@@ -97,16 +97,29 @@ No accounts, no central service. Your data, your key, your machine (or VPS).
 - Vite + React 19 + Tailwind (frontend)
 - OpenAI SDK pointed at `https://api.x.ai/v1` (full compatibility)
 - Model default: `grok-3` (override with `XAI_MODEL` in .env)
-- Persistence: simple JSON files per room (easy to inspect / backup)
-- No database needed for MVP
-- Max 4 human collaborators enforced lightly
+- Persistence: SQLite via better-sqlite3 (DB_PATH, e.g. /data/collab.db on Render disk). Rooms/users/messages survive deploys.
+- Accounts via email + verification code, 30d JWT stay-logged-in, per-chat role context on join.
+- Smart context (summary + recent N) for Grok to control token usage on long threads.
+- Max 4 human collaborators enforced lightly.
 
 ## Environment
 
 ```
-XAI_API_KEY=...          # required
+XAI_API_KEY=...          # required (your Grok key)
 XAI_MODEL=grok-3         # optional
 PORT=3000
+
+# For persistence on Render (see Deployment section)
+DB_PATH=/data/collab.db
+JWT_SECRET=long-random-string-here
+
+# For emails (verification codes + optional notifications). See SMTP section below.
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=noreply@loganwright.tech
+PUBLIC_URL=https://your-custom-domain
 ```
 
 ## Tips for Best Experience
@@ -164,9 +177,23 @@ Render's free tier is perfect for this:
    - Add Environment Variable:
      - `XAI_API_KEY` = your real key (paste it here)
      - (Optional) `XAI_MODEL` = `grok-3` or `grok-4.3` etc.
+     - `JWT_SECRET` = a long random string (for 30-day login cookies)
    - Deploy.
 
-3. **Custom Domain** (loganwright.tech recommended)
+3. **Add Persistent Disk for the database (critical — accounts, rooms, and history must survive deploys/rebuilds)**
+   - After the first successful deploy, go to your service in the Render dashboard.
+   - Go to **Disks** (or search "Add Disk" / Persistent Storage in the sidebar/settings).
+   - Add a disk:
+     - Name: e.g. `collab-data`
+     - Size: 1 GB (free tier allows this; tiny for chat history)
+     - Mount Path: `/data`
+   - Save. Render will attach it (may trigger a redeploy).
+   - Then add this Environment Variable (so the app writes the SQLite file to the disk instead of ephemeral storage):
+     - `DB_PATH` = `/data/collab.db`
+   - Redeploy if needed. The `server/db.js` code automatically `mkdir -p` the dirname of DB_PATH on startup.
+   - Result: rooms, users, memberships, messages, and your "Your chats" list persist even when Render rebuilds the container image on git push.
+
+4. **Custom Domain** (loganwright.tech recommended)
    - Once deployed, you'll get a `*.onrender.com` URL.
    - In the service → **Settings** → **Custom Domains** → Add domain, e.g.:
      - `collab.loganwright.tech`
@@ -186,6 +213,43 @@ Render's free tier is perfect for this:
 **Limitations of free tier**
 - Sleeps after 15 minutes of no traffic (first visitor waits a few seconds for wake-up).
 - Fine for casual collab. If you want always-on later, upgrade to a cheap paid instance (~$7/mo).
+
+### Email / SMTP setup (required for accounts + verification codes)
+Accounts use email + 6-digit code. Room activity notifications are optional (per-user toggle).
+
+**Important for your Cloudflare + loganwright.tech setup**
+- Cloudflare (DNS + Email Routing) lets you *receive* mail at noreply@loganwright.tech and contact@loganwright.tech.
+- It does **not** provide an SMTP server for *sending* outbound mail.
+- You need a separate transactional email / SMTP relay provider that supports custom From: domains (after you add a few DNS records for DKIM/SPF).
+
+**Recommended (free tier, easy for this volume): Brevo (brevo.com)**
+1. Create free account at https://www.brevo.com
+2. Add and verify your domain `loganwright.tech` in Brevo (they give you 2-3 TXT records for DKIM + SPF advice).
+3. Since your DNS is managed at Cloudflare, log into CF → DNS and add those exact TXT records (set Proxy status to "DNS only" / grey cloud for the DKIM ones if Brevo says so).
+4. In Brevo, go to SMTP & API or Transactional → SMTP, generate an "SMTP key" (this is your password).
+5. In Render Environment Variables for your service, add:
+   ```
+   SMTP_HOST=smtp-relay.brevo.com
+   SMTP_PORT=587
+   SMTP_USER=your-brevo-login-email (often the one you signed up with)
+   SMTP_PASS=the-smtp-key-you-generated-in-brevo
+   SMTP_FROM=noreply@loganwright.tech
+   ```
+   (You can also use contact@loganwright.tech if you add it as a sender in Brevo.)
+6. (Strongly recommended) Also set:
+   ```
+   PUBLIC_URL=https://collab.loganwright.tech
+   ```
+   This makes the links in verification emails and "new message in room" notifications point to your real domain.
+
+**Other provider options**
+- Resend.com (very dev-friendly, generous free tier)
+- Mailgun (free tier for small volume)
+- Your existing Google Workspace / Microsoft 365 if the domain is routed there (use their SMTP settings)
+
+If you leave SMTP_* unset, the server will log verification codes to the Render logs (fine for testing, but you won't be able to complete signup from the web UI without checking logs).
+
+Once SMTP is configured and the domain verified with the provider, signups will email real codes and the "Your chats" + account features work end-to-end.
 
 ### Self-Contained Docker Image
 
@@ -218,13 +282,24 @@ This is the most "free forever + powerful" option, but requires more initial set
 
 ### Environment Variables on Any Platform
 
-Never commit your real key. Always inject at runtime:
+Never commit your real key. Always inject at runtime (via Render dashboard, docker -e, etc.):
 
+Required for core:
 - `XAI_API_KEY` (required)
-- `XAI_MODEL` (optional)
-- `PORT` (most platforms set this automatically)
+- `JWT_SECRET` (required for logins in prod; long random string)
 
-The app reads `process.env` directly (dotenv is just a local convenience).
+For persistent DB (Render disk):
+- `DB_PATH=/data/collab.db` (only after attaching a disk at mount path `/data`)
+
+For accounts / email:
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+- `PUBLIC_URL` (for links in emails)
+
+Optional:
+- `XAI_MODEL` (default grok-3)
+- `PORT`
+
+The app reads `process.env` directly (dotenv is just a local convenience). See .env.example for full list + comments.
 
 ### Quick Local Test After Adding Key
 

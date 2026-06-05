@@ -13,5 +13,23 @@ services:
         sync: false   # Set this manually in the dashboard with your key
       - key: XAI_MODEL
         value: grok-3
+      - key: JWT_SECRET
+        sync: false   # Long random string for 30-day auth cookies. Set manually.
+      # After adding a Persistent Disk (mount path /data) in dashboard:
+      # - key: DB_PATH
+      #   value: /data/collab.db
+      # For emails (Brevo etc.):
+      # - key: SMTP_HOST
+      #   value: smtp-relay.brevo.com
+      # - key: SMTP_PORT
+      #   value: "587"
+      # - key: SMTP_USER
+      #   sync: false
+      # - key: SMTP_PASS
+      #   sync: false
+      # - key: SMTP_FROM
+      #   value: noreply@loganwright.tech
+      # - key: PUBLIC_URL
+      #   value: https://collab.loganwright.tech
     autoDeploy: true
     healthCheckPath: /api/health

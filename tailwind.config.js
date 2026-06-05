@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Modern dark theme inspired by grok/xai - neon blue instead of green
+        // Modern dark theme inspired by grok.com - neon cyan accents on deep black, clean minimal, user's own twist
         bg: '#0a0a0a',
         'bg-elev': '#111111',
         'bg-card': '#1a1a1a',

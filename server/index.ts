@@ -118,7 +118,7 @@ function sendRoomUpdateEmail(to: string, roomName: string, fromName: string, sni
       from: process.env.SMTP_FROM || 'noreply@example.com',
       to,
       subject: `Update in "${roomName}" - collab-grok`,
-      text: `New message from ${fromName} in "${roomName}":\n\n${snippet}\n\nView: https://collab.loganwright.tech (room ${roomId})`,
+      text: `New message from ${fromName} in "${roomName}":\n\n${snippet}\n\nView: ${process.env.PUBLIC_URL || 'http://localhost:3000'} (room ${roomId})`,
     }).catch(console.error);
   } else {
     console.log(`[DEV] Room update for ${to}: New msg in "${roomName}" from ${fromName}: ${snippet}`);

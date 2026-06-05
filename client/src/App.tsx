@@ -607,10 +607,10 @@ export default function App() {
               </div>
               <div>
                 <div className="font-semibold tracking-tight text-xl">Grok <span className="text-muted">Collab</span></div>
-                <div className="text-[10px] text-muted -mt-1">by xAI • multi-persona real-time discussion</div>
+                <div className="text-[10px] text-muted -mt-1">multi-persona real-time discussion</div>
               </div>
             </div>
-            <div className="text-xs text-muted">up to 4 collaborators + Grok • xAI</div>
+            <div className="text-xs text-muted">up to 4 collaborators + Grok</div>
           </div>
         </div>
 
@@ -782,7 +782,7 @@ export default function App() {
               {room?.name || roomId} {room?.name && <span className="text-muted">({roomId})</span>} <Copy className="w-3 h-3" />
             </div>
             <div className="text-xs px-2 py-0.5 rounded bg-bg-card border border-border text-muted hidden sm:block">
-              {participantList.length}/4 • xAI
+              {participantList.length}/4
             </div>
           </div>
         </div>
@@ -822,7 +822,7 @@ export default function App() {
               {messages.length === 0 && (
                 <div className="text-center py-10 text-muted text-sm max-w-xs mx-auto">
                   Conversation started. Say hi and introduce your thinking.
-                  <div className="mt-2 text-xs">Built with xAI • Grok will listen and chime in only when it has something useful.</div>
+                  <div className="mt-2 text-xs">Grok will listen and chime in only when it has something useful.</div>
                 </div>
               )}
 
@@ -971,7 +971,7 @@ export default function App() {
         <div className="w-80 border-l border-border bg-bg-elev/50 p-4 overflow-y-auto hidden lg:flex flex-col gap-4 shrink-0">
           <div>
             <div className="uppercase text-xs tracking-[1px] text-muted mb-2 flex items-center gap-1.5 px-1">
-              <Users className="w-3.5 h-3.5" /> COLLABORATORS • xAI Grok
+              <Users className="w-3.5 h-3.5" /> COLLABORATORS
             </div>
 
             <div className="space-y-2">

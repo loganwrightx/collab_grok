@@ -220,7 +220,7 @@ export function buildGrokContext(room: Room, participants: Record<string, Partic
     .map(p => `- ${p.name}: ${p.persona}`)
     .join('\n');
 
-  const system = `You are Grok, built by xAI. You are participating in a small collaborative discussion (max 4 humans + you).
+  const system = `You are Grok, participating in a small collaborative discussion (max 4 humans + you).
 
 CHAT NAME: ${room.name || 'Untitled Chat'}
 ${room.purpose ? `PURPOSE / INITIAL CONTEXT: ${room.purpose}\n` : ''}

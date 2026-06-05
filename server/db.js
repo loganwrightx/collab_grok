@@ -230,7 +230,7 @@ export function sendRoomUpdateEmail(to, roomName, fromName, snippet, roomId) {
     console.log(`[EMAIL] Would send update to ${to} for room ${roomName}`);
     // In practice, call from index where transporter is
   } else {
-    console.log(`[DEV] Room update for ${to}: New message in "${roomName}" from ${fromName}: ${snippet} (https://yourdomain.com/room/${roomId})`);
+    console.log(`[DEV] Room update for ${to}: New message in "${roomName}" from ${fromName}: ${snippet} (${process.env.PUBLIC_URL || 'http://localhost:3000'}/room/${roomId})`);
   }
 }
 
