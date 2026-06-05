@@ -37,9 +37,10 @@ COPY --from=builder /app/server ./server
 
 # Environment
 ENV NODE_ENV=production
-ENV PORT=3000
+# PORT is provided by the platform (Render, etc.) at runtime.
+# The server code falls back to 3000 if not set.
 
-# Expose port
+# Expose is documentation only
 EXPOSE 3000
 
 # Start command (uses tsx from deps, loads .env if present but prefer env vars)
