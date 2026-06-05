@@ -12,6 +12,7 @@ COPY package*.json ./
 # Install build dependencies for native modules like better-sqlite3 (node-gyp needs Python, make, g++)
 # Use virtual to cleanly remove after
 RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+  && npm config set python /usr/bin/python3 \
   && npm ci \
   && apk del .build-deps
 
