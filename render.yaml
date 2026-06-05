@@ -13,7 +13,5 @@ services:
         sync: false   # Set this manually in the dashboard with your key
       - key: XAI_MODEL
         value: grok-3
-      - key: PORT
-        value: 3000
     autoDeploy: true
     healthCheckPath: /api/health
