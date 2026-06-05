@@ -21,6 +21,9 @@ COPY . .
 # Build client (and server uses tsx at runtime)
 RUN npm run build:client
 
+# Prune to production deps only (removes devDeps like vite after build is done)
+RUN npm prune --production
+
 # Production image
 FROM node:20-alpine
 
