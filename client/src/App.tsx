@@ -24,6 +24,7 @@ function connectSocket() {
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 8,
+    withCredentials: true, // send cookies for auth
   });
   return socket;
 }
@@ -44,6 +45,138 @@ export default function App() {
   const [newChatPurpose, setNewChatPurpose] = useState('');
   const [newChatPassword, setNewChatPassword] = useState('');
   const [joinPassword, setJoinPassword] = useState('');
+  const [joinRoleContext, setJoinRoleContext] = useState('');
+
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [userRooms, setUserRooms] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'verify' | null>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authPersona, setAuthPersona] = useState('');
+  const [authCode, setAuthCode] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  async function checkAuth() {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/me`);
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentUser(data.user);
+        setMyName(data.user.name);
+        setMyPersona(data.user.persona || '');
+        loadUserRooms();
+      }
+    } catch (e) {}
+  }
+
+  async function handleSignup() {
+    if (!authEmail || !authName || !authPassword) {
+      toast.error('Email, name, password required');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, name: authName, persona: authPersona, password: authPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Check your email for code');
+        setAuthMode('verify');
+      } else {
+        toast.error(data.error || 'Signup failed');
+      }
+    } catch (e) {
+      toast.error('Signup failed');
+    }
+    setAuthLoading(false);
+  }
+
+  async function handleVerify() {
+    if (!authEmail || !authCode) {
+      toast.error('Email and code required');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, code: authCode })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Verified! Now login.');
+        setAuthMode('login');
+        setAuthCode('');
+      } else {
+        toast.error(data.error || 'Verify failed');
+      }
+    } catch (e) {
+      toast.error('Verify failed');
+    }
+    setAuthLoading(false);
+  }
+
+  async function handleLogin() {
+    if (!authEmail || !authPassword) {
+      toast.error('Email and password required');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentUser(data.user);
+        loadUserRooms();
+        setAuthMode(null);
+        setAuthPassword('');
+        toast.success('Logged in');
+      } else {
+        toast.error(data.error || 'Login failed');
+      }
+    } catch (e) {
+      toast.error('Login failed');
+    }
+    setAuthLoading(false);
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+    } catch {}
+    setCurrentUser(null);
+    setUserRooms([]);
+    setRoom(null);
+    setView('lobby');
+    toast.success('Logged out');
+  }
+
+  async function updateProfile(newName: string, newPersona: string) {
+    try {
+      const res = await fetch(`${API_BASE}/api/profile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName, persona: newPersona })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentUser(data.user);
+        toast.success('Profile updated');
+      }
+    } catch (e) {
+      toast.error('Update failed');
+    }
+  }
   const [typing, setTyping] = useState<TypingMap>({});
   const [grokThinking, setGrokThinking] = useState(false);
 
@@ -84,6 +217,7 @@ export default function App() {
     if (initialRoom) {
       setJoinCode(initialRoom.toUpperCase());
     }
+    checkAuth();
   }, []);
 
   // Socket listeners setup (once)
@@ -105,6 +239,9 @@ export default function App() {
       setView('chat');
       setIsJoining(false);
       setJoinPassword('');
+      setHasMoreHistory((room.messages || []).length >= 200);
+      setJoinRoleContext('');
+      loadUserRooms();
       toast.success(`Joined ${room.name || room.id}`);
       // update url without reload for shareability
       const url = new URL(window.location.href);
@@ -174,6 +311,12 @@ export default function App() {
 
   // Join / Create flow
   async function createRoomAndJoin() {
+    if (!currentUser) {
+      toast.error('Please log in first');
+      setAuthMode('login');
+      setIsJoining(false);
+      return;
+    }
     if (!myName.trim()) {
       toast.error('Please enter your name');
       return;
@@ -200,7 +343,7 @@ export default function App() {
         return;
       }
       const { roomId } = await res.json();
-      joinRoom(roomId, myName.trim(), myPersona.trim(), newChatPassword);
+      joinRoom(roomId, myName.trim(), myPersona.trim(), newChatPassword, ''); // role optional at create via persona
       // clear form
       setNewChatName('');
       setNewChatPurpose('');
@@ -211,13 +354,18 @@ export default function App() {
     }
   }
 
-  function joinRoom(roomId: string, name: string, persona: string, password: string = '') {
+  function joinRoom(roomId: string, name: string, persona: string, password: string = '', roleContext: string = '') {
     const s = connectSocket();
     setIsJoining(true);
-    s.emit('room:join', { roomId: roomId.trim().toUpperCase(), name, persona, password });
+    s.emit('room:join', { roomId: roomId.trim().toUpperCase(), name, persona, password, roleContext });
   }
 
   function handleJoinExisting() {
+    if (!currentUser) {
+      toast.error('Please log in first');
+      setAuthMode('login');
+      return;
+    }
     if (!joinCode.trim()) {
       toast.error('Enter a room code');
       return;
@@ -226,7 +374,7 @@ export default function App() {
       toast.error('Enter your name to join');
       return;
     }
-    joinRoom(joinCode, myName.trim(), myPersona.trim(), joinPassword);
+    joinRoom(joinCode, myName.trim(), myPersona.trim(), joinPassword, joinRoleContext);
   }
 
   // Messaging
@@ -244,6 +392,34 @@ export default function App() {
       setIsSending(false);
       inputRef.current?.focus();
     }, 120);
+  }
+
+  async function loadOlderMessages() {
+    if (!room || !hasMoreHistory) return;
+    const oldest = messages[0]?.ts;
+    if (!oldest) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/rooms/${room.id}/messages?before=${oldest}&limit=50`);
+      const older = await res.json();
+      if (older.length > 0) {
+        setMessages(prev => [...older.reverse(), ...prev]);
+        setHasMoreHistory(older.length >= 50);
+      } else {
+        setHasMoreHistory(false);
+      }
+    } catch (e) {
+      toast.error('Failed to load older messages');
+    }
+  }
+
+  async function loadUserRooms() {
+    try {
+      const res = await fetch(`${API_BASE}/api/rooms`);
+      if (res.ok) {
+        const rooms = await res.json();
+        setUserRooms(rooms);
+      }
+    } catch (e) {}
   }
 
   function handleInputKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -398,6 +574,7 @@ export default function App() {
     setInput('');
     setTyping({});
     setGrokThinking(false);
+    loadUserRooms();
     // clean url
     const url = new URL(window.location.href);
     url.searchParams.delete('room');
@@ -444,101 +621,119 @@ export default function App() {
               <p className="text-muted text-lg">Real-time collab with friends and Grok.</p>
             </div>
 
-            <div className="space-y-4 bg-bg-card border border-border rounded-2xl p-6">
-              <div>
-                <div className="text-sm font-medium mb-1.5">Your name</div>
-                <input
-                  value={myName}
-                  onChange={(e) => setMyName(e.target.value)}
-                  placeholder="Alex Rivera"
-                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60"
-                />
-              </div>
-              <div>
-                <div className="text-sm font-medium mb-1.5">Your persona / lens</div>
-                <textarea
-                  value={myPersona}
-                  onChange={(e) => setMyPersona(e.target.value)}
-                  rows={3}
-                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60 resize-y"
-                  placeholder="What perspective do you bring?"
-                />
-                <div className="text-[10px] text-muted mt-1">This helps everyone (and Grok) understand how you think.</div>
-              </div>
+            {!currentUser ? (
+              // Auth UI
+              <div className="space-y-4 bg-bg-card border border-border rounded-2xl p-6">
+                <div className="flex gap-2 mb-2">
+                  <button onClick={() => setAuthMode('login')} className={cn('btn flex-1', authMode === 'login' && 'btn-primary')}>Login</button>
+                  <button onClick={() => setAuthMode('signup')} className={cn('btn flex-1', authMode === 'signup' && 'btn-primary')}>Sign up</button>
+                </div>
 
-              {/* New chat metadata */}
-              <div>
-                <div className="text-sm font-medium mb-1.5">Chat Name</div>
-                <input
-                  value={newChatName}
-                  onChange={(e) => setNewChatName(e.target.value)}
-                  placeholder="Q3 Product Strategy"
-                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60"
-                />
-              </div>
-              <div>
-                <div className="text-sm font-medium mb-1.5">Purpose / Context for Grok (before conversation begins)</div>
-                <textarea
-                  value={newChatPurpose}
-                  onChange={(e) => setNewChatPurpose(e.target.value)}
-                  rows={2}
-                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60 resize-y"
-                  placeholder="We are brainstorming a new feature. Focus on user value, technical feasibility, and long-term maintainability. Challenge assumptions."
-                />
-              </div>
-              <div>
-                <div className="text-sm font-medium mb-1.5">4-Digit Password (host sets & shares; required for this group)</div>
-                <input
-                  value={newChatPassword}
-                  onChange={(e) => setNewChatPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="1234"
-                  maxLength={4}
-                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm font-mono tracking-[4px] focus:outline-none focus:border-accent/60"
-                />
-              </div>
+                {authMode === 'signup' && (
+                  <>
+                    <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Email" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <input value={authName} onChange={e=>setAuthName(e.target.value)} placeholder="Your name" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <textarea value={authPersona} onChange={e=>setAuthPersona(e.target.value)} rows={2} placeholder="Your default persona" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <input type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="Password" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <button onClick={handleSignup} disabled={authLoading} className="btn btn-primary w-full">Sign up & send code</button>
+                  </>
+                )}
 
-              <div className="pt-2 grid grid-cols-1 gap-2">
-                <button
-                  onClick={createRoomAndJoin}
-                  disabled={isJoining || !myName.trim() || !newChatPassword || newChatPassword.length !== 4}
-                  className="btn btn-primary w-full py-3 text-base disabled:opacity-60"
-                >
-                  <Plus className="w-4 h-4" /> Create new session
-                </button>
+                {authMode === 'verify' && (
+                  <>
+                    <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Email" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <input value={authCode} onChange={e=>setAuthCode(e.target.value)} placeholder="Verification code" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <button onClick={handleVerify} disabled={authLoading} className="btn btn-primary w-full">Verify</button>
+                    <button onClick={() => setAuthMode('login')} className="btn btn-ghost w-full text-xs">Back to login</button>
+                  </>
+                )}
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center px-3">
-                    <div className="w-full border-t border-border" />
+                {authMode === 'login' && (
+                  <>
+                    <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Email" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <input type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="Password" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm" />
+                    <button onClick={handleLogin} disabled={authLoading} className="btn btn-primary w-full">Login</button>
+                  </>
+                )}
+
+                <div className="text-[10px] text-muted text-center">Verification code sent to email. Stay logged in for 30 days.</div>
+              </div>
+            ) : (
+              // Logged in UI
+              <div className="space-y-4 bg-bg-card border border-border rounded-2xl p-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="font-medium">{currentUser.name}</div>
+                    <div className="text-xs text-muted">{currentUser.email}</div>
                   </div>
-                  <div className="relative flex justify-center text-[10px] uppercase tracking-widest text-muted bg-bg-card px-2">or</div>
+                  <button onClick={handleLogout} className="btn btn-ghost text-xs">Logout</button>
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    placeholder="ROOMCODE"
-                    className="flex-1 bg-bg border border-border rounded-xl px-4 py-2.5 text-sm font-mono tracking-[3px] focus:outline-none focus:border-accent/60"
-                    onKeyDown={(e) => e.key === 'Enter' && handleJoinExisting()}
-                  />
-                  <input
-                    value={joinPassword}
-                    onChange={(e) => setJoinPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="****"
-                    maxLength={4}
-                    className="w-20 bg-bg border border-border rounded-xl px-3 py-2.5 text-sm font-mono tracking-[4px] focus:outline-none focus:border-accent/60 text-center"
-                    onKeyDown={(e) => e.key === 'Enter' && handleJoinExisting()}
-                  />
-                  <button
-                    onClick={handleJoinExisting}
-                    disabled={isJoining || !joinCode.trim() || !myName.trim()}
-                    className="btn btn-secondary px-5"
-                  >
-                    Join
+                {/* Profile quick edit */}
+                <div className="text-sm">
+                  <input value={currentUser.name} onChange={e => setCurrentUser({...currentUser, name: e.target.value})} className="w-full bg-bg border border-border rounded px-2 py-1 text-sm mb-1" />
+                  <textarea value={currentUser.persona || ''} onChange={e => setCurrentUser({...currentUser, persona: e.target.value})} rows={2} className="w-full bg-bg border border-border rounded px-2 py-1 text-sm" placeholder="Your persona" />
+                  <button onClick={() => updateProfile(currentUser.name, currentUser.persona)} className="btn btn-secondary text-xs mt-1">Save profile</button>
+                </div>
+
+                {/* User's rooms list */}
+                {userRooms.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">Your chats</div>
+                    <div className="space-y-1 max-h-40 overflow-auto">
+                      {userRooms.map(r => (
+                        <button key={r.id} onClick={() => { setJoinCode(r.id); setJoinPassword(''); setJoinRoleContext(r.role_context || ''); handleJoinExisting(); }} className="w-full text-left px-3 py-1 bg-bg hover:bg-bg-elev border border-border rounded text-sm">
+                          {r.name} <span className="text-muted text-xs">({r.id})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="text-sm font-medium mb-1.5">Your name (for this session)</div>
+                  <input value={myName} onChange={(e) => setMyName(e.target.value)} placeholder="Alex Rivera" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-1.5">Your persona / lens</div>
+                  <textarea value={myPersona} onChange={(e) => setMyPersona(e.target.value)} rows={2} className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60 resize-y" placeholder="What perspective do you bring?" />
+                </div>
+
+                {/* New chat metadata */}
+                <div>
+                  <div className="text-sm font-medium mb-1.5">Chat Name</div>
+                  <input value={newChatName} onChange={(e) => setNewChatName(e.target.value)} placeholder="Q3 Product Strategy" className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-1.5">Purpose / Context for Grok (before conversation begins)</div>
+                  <textarea value={newChatPurpose} onChange={(e) => setNewChatPurpose(e.target.value)} rows={2} className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60 resize-y" placeholder="We are brainstorming a new feature. Focus on user value, technical feasibility, and long-term maintainability. Challenge assumptions." />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-1.5">4-Digit Password (host sets & shares; required for this group)</div>
+                  <input value={newChatPassword} onChange={(e) => setNewChatPassword(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="1234" maxLength={4} className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm font-mono tracking-[4px] focus:outline-none focus:border-accent/60" />
+                </div>
+
+                <div className="pt-2 grid grid-cols-1 gap-2">
+                  <button onClick={createRoomAndJoin} disabled={isJoining || !myName.trim() || !newChatPassword || newChatPassword.length !== 4} className="btn btn-primary w-full py-3 text-base disabled:opacity-60">
+                    <Plus className="w-4 h-4" /> Create new session
                   </button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center px-3">
+                      <div className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-[10px] uppercase tracking-widest text-muted bg-bg-card px-2">or join existing</div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ROOMCODE" className="flex-1 bg-bg border border-border rounded-xl px-4 py-2.5 text-sm font-mono tracking-[3px] focus:outline-none focus:border-accent/60" onKeyDown={(e) => e.key === 'Enter' && handleJoinExisting()} />
+                    <input value={joinPassword} onChange={(e) => setJoinPassword(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="****" maxLength={4} className="w-20 bg-bg border border-border rounded-xl px-3 py-2.5 text-sm font-mono tracking-[4px] focus:outline-none focus:border-accent/60 text-center" onKeyDown={(e) => e.key === 'Enter' && handleJoinExisting()} />
+                    <input value={joinRoleContext} onChange={(e) => setJoinRoleContext(e.target.value)} placeholder="Role (opt)" className="flex-1 bg-bg border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-accent/60" onKeyDown={(e) => e.key === 'Enter' && handleJoinExisting()} />
+                    <button onClick={handleJoinExisting} disabled={isJoining || !joinCode.trim() || !myName.trim()} className="btn btn-secondary px-5">Join</button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="text-center text-xs text-muted space-y-1">
               <div>Share the room code with 1–3 others.</div>
@@ -667,6 +862,15 @@ export default function App() {
                 </div>
               );
             })}
+
+            {hasMoreHistory && (
+              <button
+                onClick={loadOlderMessages}
+                className="btn btn-secondary mx-auto block my-2 text-xs"
+              >
+                Load older messages
+              </button>
+            )}
 
             {/* Live typing / thinking */}
             {(otherTyping.length > 0 || showGrokThinking) && (

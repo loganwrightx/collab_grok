@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { nanoid } from 'nanoid';
+import * as db from './db.js';
 import { Room, Participant, Message, RoomState } from './types.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -28,6 +29,8 @@ export async function loadRoom(roomId: string): Promise<Room | null> {
   const rid = norm(roomId);
   await ensureDirs();
   try {
+    // Prefer DB for messages to support long chats without loading everything
+    const dbRoom = db.getRoomById ? db.getRoomById(rid) : null; // if db imported? wait, we'll handle in caller
     const raw = await fs.readFile(getRoomPath(rid), 'utf-8');
     const data = JSON.parse(raw) as Room;
     data.id = rid; // ensure canonical case
@@ -35,9 +38,39 @@ export async function loadRoom(roomId: string): Promise<Room | null> {
     if (!data.name) data.name = 'Untitled Chat';
     if (!data.purpose) data.purpose = '';
     if (!data.password) data.password = '';
+    // prefer DB meta if present (for name/purpose after migration)
+    const dbMeta = db.getRoomById ? db.getRoomById(rid) : null;
+    if (dbMeta) {
+      data.name = dbMeta.name || data.name;
+      data.purpose = dbMeta.purpose || data.purpose;
+    }
+    // load messages from DB (limits for long chats)
+    if (db.getRecentMessages) {
+      const recent = db.getRecentMessages(rid, 300);
+      data.messages = recent.map(m => ({
+        id: m.id,
+        role: 'user',
+        userId: m.user_id ? `u_${m.user_id}` : null,
+        name: m.user_name || 'Unknown',
+        content: m.content,
+        ts: m.ts,
+      }));
+    } else if (data.messages && data.messages.length > 300) {
+      data.messages = data.messages.slice(-300);
+    }
     // revive
     rooms.set(rid, data);
     if (!typingStates.has(rid)) typingStates.set(rid, {});
+    // populate participants from DB so list shows all members (even offline)
+    if (db.getRoomMembers && Object.keys(data.participants || {}).length === 0) {
+      const mems = db.getRoomMembers(rid);
+      data.participants = {};
+      for (const m of mems) {
+        const uid = `u_${m.id}`;
+        const pers = m.role_context ? `${m.persona || ''} (${m.role_context})` : (m.persona || '');
+        data.participants[uid] = { id: uid, name: m.name, persona: pers, joinedAt: 0, color: '#ccc' };
+      }
+    }
     return data;
   } catch {
     return null;
@@ -54,11 +87,11 @@ export function getRoom(roomId: string): Room | undefined {
   return rooms.get(norm(roomId));
 }
 
-export function createRoom(name: string = '', purpose: string = '', password: string = ''): Room {
-  const id = nanoid(8).toUpperCase(); // short shareable code, normalized to upper for case-insensitive joins
+export function createRoom(name: string = '', purpose: string = '', password: string = '', id: string = null): Room {
+  const roomId = id || nanoid(8).toUpperCase(); // short shareable code, normalized to upper for case-insensitive joins
   const hashedPw = password ? crypto.createHash('sha256').update(password).digest('hex') : '';
   const room: Room = {
-    id,
+    id: roomId,
     createdAt: Date.now(),
     name: name.trim() || 'Untitled Chat',
     purpose: purpose.trim(),
@@ -70,9 +103,9 @@ export function createRoom(name: string = '', purpose: string = '', password: st
     lastActivity: Date.now(),
     grokThinking: false,
   };
-  rooms.set(id, room);
-  typingStates.set(id, {});
-  // fire and forget save
+  rooms.set(roomId, room);
+  typingStates.set(roomId, {});
+  // fire and forget save (legacy json, db is primary now)
   saveRoom(room).catch(console.error);
   return room;
 }
