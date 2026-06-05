@@ -1,0 +1,19 @@
+# Render.com blueprint for one-click deploy of collab-grok
+# Usage: In Render dashboard, "Blueprint" or connect repo and it can detect.
+# Or go to https://dashboard.render.com/blueprints and point at this repo.
+
+services:
+  - type: web
+    name: collab-grok
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: XAI_API_KEY
+        sync: false   # Set this manually in the dashboard with your key
+      - key: XAI_MODEL
+        value: grok-3
+      - key: PORT
+        value: 3000
+    autoDeploy: true
+    healthCheckPath: /api/health

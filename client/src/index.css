@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-bg text-white font-sans antialiased;
+}
+
+.chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #333 #111;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: #111;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+.message-bubble {
+  @apply max-w-full rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed shadow-sm;
+}
+
+.message-bubble.user {
+  @apply bg-white text-black ml-auto rounded-br-md;
+}
+
+.message-bubble.other {
+  @apply bg-bg-card border border-border rounded-bl-md;
+}
+
+.message-bubble.grok {
+  @apply bg-[#0f172a] border border-blue-950 text-blue-50 rounded-bl-md;
+}
+
+.typing-indicator {
+  @apply flex items-center gap-1.5 text-muted text-sm px-3 py-1;
+}
+
+.participant-card {
+  @apply bg-bg-card border border-border rounded-xl p-3 transition-colors;
+}
+
+.participant-card:hover {
+  @apply border-accent/40;
+}
+
+.input-area {
+  @apply bg-bg-elev border border-border rounded-2xl p-2 focus-within:border-accent/60 transition-colors;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all active:scale-[0.985] disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply bg-accent text-black hover:bg-accent-dark;
+}
+
+.btn-secondary {
+  @apply bg-bg-card border border-border hover:bg-bg-elev;
+}
+
+.btn-ghost {
+  @apply hover:bg-bg-card;
+}
+
+.room-code {
+  @apply font-mono text-sm bg-bg-elev border border-border px-3 py-1 rounded-lg select-all;
+}
+
+.modal {
+  @apply fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4;
+}
+
+.modal-content {
+  @apply bg-bg-elev border border-border rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col;
+}
