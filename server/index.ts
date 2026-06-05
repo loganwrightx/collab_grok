@@ -112,6 +112,19 @@ function sendVerificationEmail(email, code) {
   }
 }
 
+function sendRoomUpdateEmail(to: string, roomName: string, fromName: string, snippet: string, roomId: string) {
+  if (transporter) {
+    transporter.sendMail({
+      from: process.env.SMTP_FROM || 'noreply@example.com',
+      to,
+      subject: `Update in "${roomName}" - collab-grok`,
+      text: `New message from ${fromName} in "${roomName}":\n\n${snippet}\n\nView: https://collab.loganwright.tech (room ${roomId})`,
+    }).catch(console.error);
+  } else {
+    console.log(`[DEV] Room update for ${to}: New msg in "${roomName}" from ${fromName}: ${snippet}`);
+  }
+}
+
 function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
 }
@@ -610,6 +623,18 @@ io.on('connection', (socket) => {
     // Broadcast to room
     io.to(meta.roomId).emit('message:new', msg);
     console.log(`[room ${meta.roomId}] ${p.name}: ${trimmed.slice(0, 90)}${trimmed.length > 90 ? '…' : ''}`);
+
+    // Email notifications for other members who opted in (for "page updates")
+    if (db.getRoomMembers) {
+      const members = db.getRoomMembers(meta.roomId);
+      for (const m of members) {
+        if (m.id === uid) continue;
+        if (m.notify_on_activity) {
+          const short = trimmed.slice(0, 150) + (trimmed.length > 150 ? '...' : '');
+          sendRoomUpdateEmail(m.email, room.name, p.name, short, meta.roomId);
+        }
+      }
+    }
 
     // Clear this user's typing
     setTyping(meta.roomId, meta.userId, false);

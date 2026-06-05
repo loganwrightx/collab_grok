@@ -25,6 +25,7 @@ db.exec(`
     verified INTEGER DEFAULT 0,
     verification_code TEXT,
     verification_expires INTEGER,
+    notify_on_activity INTEGER DEFAULT 1,
     created_at INTEGER DEFAULT (strftime('%s', 'now'))
   );
 
@@ -76,14 +77,18 @@ export function getUserById(id) {
 export function createUser({ email, name, persona, password }) {
   const password_hash = bcryptHash(password);
   const info = db.prepare(`
-    INSERT INTO users (email, name, persona, password_hash, verified)
-    VALUES (?, ?, ?, ?, 0)
+    INSERT INTO users (email, name, persona, password_hash, verified, notify_on_activity)
+    VALUES (?, ?, ?, ?, 0, 1)
   `).run(email, name, persona || '', password_hash);
   return info.lastInsertRowid;
 }
 
-export function updateUser(id, { name, persona }) {
-  db.prepare('UPDATE users SET name = ?, persona = ? WHERE id = ?').run(name, persona, id);
+export function updateUser(id, { name, persona, notify_on_activity }) {
+  if (notify_on_activity !== undefined) {
+    db.prepare('UPDATE users SET name = ?, persona = ?, notify_on_activity = ? WHERE id = ?').run(name, persona, notify_on_activity, id);
+  } else {
+    db.prepare('UPDATE users SET name = ?, persona = ? WHERE id = ?').run(name, persona, id);
+  }
 }
 
 export function setVerificationCode(email, code, expires) {
@@ -141,7 +146,7 @@ export function isRoomMember(roomId, userId) {
 
 export function getRoomMembers(roomId) {
   return db.prepare(`
-    SELECT u.id, u.name, u.persona, rm.role_context
+    SELECT u.id, u.name, u.persona, u.email, u.notify_on_activity, rm.role_context
     FROM room_members rm
     JOIN users u ON u.id = rm.user_id
     WHERE rm.room_id = ?
@@ -217,6 +222,16 @@ function bcryptHash(pw) {
 
 export function bcryptCompare(pw, hash) {
   return bcrypt.compareSync(pw, hash);
+}
+
+export function sendRoomUpdateEmail(to, roomName, fromName, snippet, roomId) {
+  if (transporter) {  // transporter is in index, but for modularity pass or global
+    // Note: transporter defined in index.js; for standalone, re-init or move
+    console.log(`[EMAIL] Would send update to ${to} for room ${roomName}`);
+    // In practice, call from index where transporter is
+  } else {
+    console.log(`[DEV] Room update for ${to}: New message in "${roomName}" from ${fromName}: ${snippet} (https://yourdomain.com/room/${roomId})`);
+  }
 }
 
 export default db;

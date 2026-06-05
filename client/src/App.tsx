@@ -161,12 +161,12 @@ export default function App() {
     toast.success('Logged out');
   }
 
-  async function updateProfile(newName: string, newPersona: string) {
+  async function updateProfile(newName: string, newPersona: string, notify = true) {
     try {
       const res = await fetch(`${API_BASE}/api/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName, persona: newPersona })
+        body: JSON.stringify({ name: newName, persona: newPersona, notify_on_activity: notify ? 1 : 0 })
       });
       if (res.ok) {
         const data = await res.json();
@@ -606,11 +606,11 @@ export default function App() {
                 <MessageCircle className="w-5 h-5 text-black" />
               </div>
               <div>
-                <div className="font-semibold tracking-tight text-xl">collab • grok</div>
-                <div className="text-[10px] text-muted -mt-1">multi-persona real-time discussion</div>
+                <div className="font-semibold tracking-tight text-xl">Grok <span className="text-muted">Collab</span></div>
+                <div className="text-[10px] text-muted -mt-1">by xAI • multi-persona real-time discussion</div>
               </div>
             </div>
-            <div className="text-xs text-muted">up to 4 collaborators + Grok</div>
+            <div className="text-xs text-muted">up to 4 collaborators + Grok • xAI</div>
           </div>
         </div>
 
@@ -673,7 +673,11 @@ export default function App() {
                 <div className="text-sm">
                   <input value={currentUser.name} onChange={e => setCurrentUser({...currentUser, name: e.target.value})} className="w-full bg-bg border border-border rounded px-2 py-1 text-sm mb-1" />
                   <textarea value={currentUser.persona || ''} onChange={e => setCurrentUser({...currentUser, persona: e.target.value})} rows={2} className="w-full bg-bg border border-border rounded px-2 py-1 text-sm" placeholder="Your persona" />
-                  <button onClick={() => updateProfile(currentUser.name, currentUser.persona)} className="btn btn-secondary text-xs mt-1">Save profile</button>
+                  <label className="flex items-center gap-2 text-xs mt-1">
+                    <input type="checkbox" checked={!!currentUser.notify_on_activity} onChange={e => setCurrentUser({...currentUser, notify_on_activity: e.target.checked ? 1 : 0})} />
+                    Email me on chat updates
+                  </label>
+                  <button onClick={() => updateProfile(currentUser.name, currentUser.persona, !!currentUser.notify_on_activity)} className="btn btn-secondary text-xs mt-1">Save profile</button>
                 </div>
 
                 {/* User's rooms list */}
@@ -763,7 +767,7 @@ export default function App() {
             <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shrink-0">
               <MessageCircle className="w-4 h-4 text-black" />
             </div>
-            <div className="font-semibold tracking-tight">collab</div>
+            <div className="font-semibold tracking-tight">Grok <span className="text-muted">Collab</span></div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -778,7 +782,7 @@ export default function App() {
               {room?.name || roomId} {room?.name && <span className="text-muted">({roomId})</span>} <Copy className="w-3 h-3" />
             </div>
             <div className="text-xs px-2 py-0.5 rounded bg-bg-card border border-border text-muted hidden sm:block">
-              {participantList.length}/4
+              {participantList.length}/4 • xAI
             </div>
           </div>
         </div>
@@ -818,7 +822,7 @@ export default function App() {
               {messages.length === 0 && (
                 <div className="text-center py-10 text-muted text-sm max-w-xs mx-auto">
                   Conversation started. Say hi and introduce your thinking.
-                  <div className="mt-2 text-xs">Grok will listen and chime in only when it has something useful.</div>
+                  <div className="mt-2 text-xs">Built with xAI • Grok will listen and chime in only when it has something useful.</div>
                 </div>
               )}
 
@@ -967,7 +971,7 @@ export default function App() {
         <div className="w-80 border-l border-border bg-bg-elev/50 p-4 overflow-y-auto hidden lg:flex flex-col gap-4 shrink-0">
           <div>
             <div className="uppercase text-xs tracking-[1px] text-muted mb-2 flex items-center gap-1.5 px-1">
-              <Users className="w-3.5 h-3.5" /> COLLABORATORS
+              <Users className="w-3.5 h-3.5" /> COLLABORATORS • xAI Grok
             </div>
 
             <div className="space-y-2">
