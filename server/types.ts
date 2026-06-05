@@ -18,6 +18,9 @@ export interface Message {
 export interface Room {
   id: string;
   createdAt: number;
+  name: string;
+  purpose: string;
+  password: string; // stored as sha256 hash
   participants: Record<string, Participant>; // userId -> participant
   messages: Message[];
   summary: string; // running compaction of older history
@@ -28,7 +31,7 @@ export interface Room {
 }
 
 export interface ClientToServerEvents {
-  'room:join': (data: { roomId: string; name: string; persona: string }) => void;
+  'room:join': (data: { roomId: string; name: string; persona: string; password?: string }) => void;
   'room:leave': () => void;
   'message:send': (content: string) => void;
   'typing:start': () => void;
@@ -54,6 +57,8 @@ export interface ServerToClientEvents {
 export interface RoomState {
   id: string;
   createdAt: number;
+  name: string;
+  purpose: string;
   participants: Record<string, Participant>;
   messages: Message[];
   summary: string;

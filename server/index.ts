@@ -5,6 +5,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs/promises';
+import crypto from 'crypto';
 import { nanoid } from 'nanoid';
 
 import {
@@ -57,9 +58,13 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Create new room
-app.post('/api/rooms', async (_req, res) => {
-  const room = createRoom();
-  console.log(`[room] created ${room.id}`);
+app.post('/api/rooms', async (req, res) => {
+  const { name = '', purpose = '', password = '' } = req.body || {};
+  if (!password || !/^\d{4}$/.test(password)) {
+    return res.status(400).json({ error: 'A 4-digit password is required to create a chat group' });
+  }
+  const room = createRoom(name, purpose, password);
+  console.log(`[room] created ${room.id} "${room.name}"`);
   res.json({ roomId: room.id, createdAt: room.createdAt });
 });
 
@@ -75,10 +80,13 @@ app.get('/api/rooms/:id', async (req, res) => {
   }
   res.json({
     id: room.id,
+    name: room.name || 'Untitled Chat',
+    purpose: room.purpose || '',
     createdAt: room.createdAt,
     participantCount: Object.keys(room.participants).length,
     messageCount: room.messages.length,
     grokAuto: room.grokAuto,
+    hasPassword: !!room.password,
   });
 });
 
@@ -211,7 +219,7 @@ function broadcastTyping(roomId: string) {
 }
 
 io.on('connection', (socket) => {
-  socket.on('room:join', async (data: { roomId: string; name: string; persona: string }) => {
+  socket.on('room:join', async (data: { roomId: string; name: string; persona: string; password?: string }) => {
     try {
       let { roomId, name, persona } = data;
       roomId = (roomId || '').trim().toUpperCase();
@@ -227,6 +235,16 @@ io.on('connection', (socket) => {
       if (!room) {
         socket.emit('error', 'Room not found. Check the code or create a new one.');
         return;
+      }
+
+      // Verify password if set
+      if (room.password) {
+        const provided = data.password || '';
+        const hashedProvided = crypto.createHash('sha256').update(provided).digest('hex');
+        if (hashedProvided !== room.password) {
+          socket.emit('error', 'Incorrect 4-digit password for this chat.');
+          return;
+        }
       }
 
       // Enforce max ~4 humans

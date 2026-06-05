@@ -38,6 +38,12 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
+
+  // New chat creation fields
+  const [newChatName, setNewChatName] = useState('');
+  const [newChatPurpose, setNewChatPurpose] = useState('');
+  const [newChatPassword, setNewChatPassword] = useState('');
+  const [joinPassword, setJoinPassword] = useState('');
   const [typing, setTyping] = useState<TypingMap>({});
   const [grokThinking, setGrokThinking] = useState(false);
 
@@ -98,7 +104,8 @@ export default function App() {
       setTyping({});
       setView('chat');
       setIsJoining(false);
-      toast.success(`Joined room ${room.id}`);
+      setJoinPassword('');
+      toast.success(`Joined ${room.name || room.id}`);
       // update url without reload for shareability
       const url = new URL(window.location.href);
       url.searchParams.set('room', room.id);
@@ -171,21 +178,43 @@ export default function App() {
       toast.error('Please enter your name');
       return;
     }
+    if (!newChatPassword || !/^\d{4}$/.test(newChatPassword)) {
+      toast.error('Please set a 4-digit password for the chat group');
+      return;
+    }
     setIsJoining(true);
     try {
-      const res = await fetch(`${API_BASE}/api/rooms`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/api/rooms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newChatName.trim() || 'Untitled Chat',
+          purpose: newChatPurpose.trim(),
+          password: newChatPassword
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Failed to create room');
+        setIsJoining(false);
+        return;
+      }
       const { roomId } = await res.json();
-      joinRoom(roomId, myName.trim(), myPersona.trim());
+      joinRoom(roomId, myName.trim(), myPersona.trim(), newChatPassword);
+      // clear form
+      setNewChatName('');
+      setNewChatPurpose('');
+      setNewChatPassword('');
     } catch (e) {
       toast.error('Failed to create room');
       setIsJoining(false);
     }
   }
 
-  function joinRoom(roomId: string, name: string, persona: string) {
+  function joinRoom(roomId: string, name: string, persona: string, password: string = '') {
     const s = connectSocket();
     setIsJoining(true);
-    s.emit('room:join', { roomId: roomId.trim().toUpperCase(), name, persona });
+    s.emit('room:join', { roomId: roomId.trim().toUpperCase(), name, persona, password });
   }
 
   function handleJoinExisting() {
@@ -197,7 +226,7 @@ export default function App() {
       toast.error('Enter your name to join');
       return;
     }
-    joinRoom(joinCode, myName.trim(), myPersona.trim());
+    joinRoom(joinCode, myName.trim(), myPersona.trim(), joinPassword);
   }
 
   // Messaging
@@ -437,10 +466,41 @@ export default function App() {
                 <div className="text-[10px] text-muted mt-1">This helps everyone (and Grok) understand how you think.</div>
               </div>
 
+              {/* New chat metadata */}
+              <div>
+                <div className="text-sm font-medium mb-1.5">Chat Name</div>
+                <input
+                  value={newChatName}
+                  onChange={(e) => setNewChatName(e.target.value)}
+                  placeholder="Q3 Product Strategy"
+                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60"
+                />
+              </div>
+              <div>
+                <div className="text-sm font-medium mb-1.5">Purpose / Context for Grok (before conversation begins)</div>
+                <textarea
+                  value={newChatPurpose}
+                  onChange={(e) => setNewChatPurpose(e.target.value)}
+                  rows={2}
+                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-accent/60 resize-y"
+                  placeholder="We are brainstorming a new feature. Focus on user value, technical feasibility, and long-term maintainability. Challenge assumptions."
+                />
+              </div>
+              <div>
+                <div className="text-sm font-medium mb-1.5">4-Digit Password (host sets & shares; required for this group)</div>
+                <input
+                  value={newChatPassword}
+                  onChange={(e) => setNewChatPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="1234"
+                  maxLength={4}
+                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm font-mono tracking-[4px] focus:outline-none focus:border-accent/60"
+                />
+              </div>
+
               <div className="pt-2 grid grid-cols-1 gap-2">
                 <button
                   onClick={createRoomAndJoin}
-                  disabled={isJoining || !myName.trim()}
+                  disabled={isJoining || !myName.trim() || !newChatPassword || newChatPassword.length !== 4}
                   className="btn btn-primary w-full py-3 text-base disabled:opacity-60"
                 >
                   <Plus className="w-4 h-4" /> Create new session
@@ -459,6 +519,14 @@ export default function App() {
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     placeholder="ROOMCODE"
                     className="flex-1 bg-bg border border-border rounded-xl px-4 py-2.5 text-sm font-mono tracking-[3px] focus:outline-none focus:border-accent/60"
+                    onKeyDown={(e) => e.key === 'Enter' && handleJoinExisting()}
+                  />
+                  <input
+                    value={joinPassword}
+                    onChange={(e) => setJoinPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="****"
+                    maxLength={4}
+                    className="w-20 bg-bg border border-border rounded-xl px-3 py-2.5 text-sm font-mono tracking-[4px] focus:outline-none focus:border-accent/60 text-center"
                     onKeyDown={(e) => e.key === 'Enter' && handleJoinExisting()}
                   />
                   <button
@@ -510,9 +578,9 @@ export default function App() {
                 toast.success('Room code copied');
               }}
               className="room-code cursor-pointer active:bg-bg flex items-center gap-1.5"
-              title="Click to copy"
+              title="Click to copy code"
             >
-              {roomId} <Copy className="w-3 h-3" />
+              {room?.name || roomId} {room?.name && <span className="text-muted">({roomId})</span>} <Copy className="w-3 h-3" />
             </div>
             <div className="text-xs px-2 py-0.5 rounded bg-bg-card border border-border text-muted hidden sm:block">
               {participantList.length}/4
@@ -745,6 +813,13 @@ export default function App() {
               {participantList.length < 4 && (
                 <div className="text-[10px] text-muted/70 px-1 pt-1">Room can hold {4 - participantList.length} more.</div>
               )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-widest text-muted mb-1 px-1">CHAT PURPOSE</div>
+            <div className="text-sm text-muted whitespace-pre-wrap mb-3 px-1">
+              {room?.purpose || 'No purpose set.'}
             </div>
           </div>
 

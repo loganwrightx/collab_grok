@@ -18,6 +18,8 @@ export interface Message {
 export interface RoomState {
   id: string;
   createdAt: number;
+  name: string;
+  purpose: string;
   participants: Record<string, Participant>;
   messages: Message[];
   summary: string;

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import { nanoid } from 'nanoid';
 import { Room, Participant, Message, RoomState } from './types.js';
 
@@ -30,6 +31,10 @@ export async function loadRoom(roomId: string): Promise<Room | null> {
     const raw = await fs.readFile(getRoomPath(rid), 'utf-8');
     const data = JSON.parse(raw) as Room;
     data.id = rid; // ensure canonical case
+    // revive / backward compat for old rooms
+    if (!data.name) data.name = 'Untitled Chat';
+    if (!data.purpose) data.purpose = '';
+    if (!data.password) data.password = '';
     // revive
     rooms.set(rid, data);
     if (!typingStates.has(rid)) typingStates.set(rid, {});
@@ -49,11 +54,15 @@ export function getRoom(roomId: string): Room | undefined {
   return rooms.get(norm(roomId));
 }
 
-export function createRoom(): Room {
+export function createRoom(name: string = '', purpose: string = '', password: string = ''): Room {
   const id = nanoid(8).toUpperCase(); // short shareable code, normalized to upper for case-insensitive joins
+  const hashedPw = password ? crypto.createHash('sha256').update(password).digest('hex') : '';
   const room: Room = {
     id,
     createdAt: Date.now(),
+    name: name.trim() || 'Untitled Chat',
+    purpose: purpose.trim(),
+    password: hashedPw,
     participants: {},
     messages: [],
     summary: '',
@@ -151,6 +160,8 @@ export function getRoomState(room: Room): RoomState {
   return {
     id: room.id,
     createdAt: room.createdAt,
+    name: room.name || 'Untitled Chat',
+    purpose: room.purpose || '',
     participants: room.participants,
     messages: room.messages,
     summary: room.summary,
@@ -177,6 +188,9 @@ export function buildGrokContext(room: Room, participants: Record<string, Partic
     .join('\n');
 
   const system = `You are Grok, built by xAI. You are participating in a small collaborative discussion (max 4 humans + you).
+
+CHAT NAME: ${room.name || 'Untitled Chat'}
+${room.purpose ? `PURPOSE / INITIAL CONTEXT: ${room.purpose}\n` : ''}
 
 PARTICIPANTS (personas):
 ${participantList || '- (no humans yet)'}
