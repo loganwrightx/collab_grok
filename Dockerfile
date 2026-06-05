@@ -9,8 +9,11 @@ WORKDIR /app
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install all deps (including dev for build)
-RUN npm ci
+# Install build dependencies for native modules like better-sqlite3 (node-gyp needs Python, make, g++)
+# Use virtual to cleanly remove after
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+  && npm ci \
+  && apk del .build-deps
 
 # Copy source
 COPY . .
