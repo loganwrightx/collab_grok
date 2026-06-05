@@ -619,7 +619,7 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto chat-scroll px-4 md:px-6 pt-6 pb-4" style={{ background: 'radial-gradient(circle at 50% 0, #111 0%, #0a0a0a 70%)' }}>
-            <div className="max-w-[1080px] mx-auto space-y-6">
+            <div className="space-y-6">
               {messages.length === 0 && (
                 <div className="text-center py-10 text-muted text-sm max-w-xs mx-auto">
                   Conversation started. Say hi and introduce your thinking.
@@ -634,7 +634,7 @@ export default function App() {
 
               return (
                 <div key={m.id + idx} className={cn('flex', isYou ? 'justify-end' : 'justify-start')}>
-                  <div className={cn('max-w-[min(92%,_850px)]', isYou && 'items-end')}>
+                  <div className={cn('max-w-[min(70%,_900px)]', isYou && 'items-end')}>
                     <div className="flex items-center gap-2 mb-1 px-1 text-[10px] text-muted">
                       <span className={cn('font-medium', isG && 'text-blue-400', isYou && 'text-white/70')}>
                         {isYou ? 'You' : m.name}
@@ -670,7 +670,7 @@ export default function App() {
 
             {/* Live typing / thinking */}
             {(otherTyping.length > 0 || showGrokThinking) && (
-              <div className="px-1">
+              <div className="max-w-[min(70%,_900px)]">
                 {otherTyping.length > 0 && (
                   <div className="typing-indicator">
                     {otherTyping.join(', ')} {otherTyping.length === 1 ? 'is' : 'are'} typing…
