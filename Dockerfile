@@ -28,10 +28,12 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/server ./server
-COPY --from=builder /app/.env.example ./.env.example
 
-# Install only production deps? But we need tsx for start
-# tsx is in dependencies, so ok
+# Note: .env.example is committed for reference but not copied into the image.
+# Real config comes from environment variables at runtime (XAI_API_KEY etc.)
+
+# tsx is listed in dependencies so we can use it to run the TS server directly
+
 
 # Environment
 ENV NODE_ENV=production
