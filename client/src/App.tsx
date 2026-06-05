@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Send, Users, Copy, Download, FileText, Brain, MessageCircle, X, Edit2, Play, Pause, Plus
 } from 'lucide-react';
@@ -35,6 +37,7 @@ export default function App() {
   const [grokAuto, setGrokAuto] = useState(true);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [typing, setTyping] = useState<TypingMap>({});
   const [grokThinking, setGrokThinking] = useState(false);
 
@@ -215,7 +218,12 @@ export default function App() {
   }
 
   function handleInputKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // In markdown/fancy mode, Enter always inserts newline (never sends).
+    // User must use the Send button (or Ctrl/Cmd+Enter for power users).
+    if (!isMarkdownMode && e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    } else if (isMarkdownMode && (e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       sendMessage();
     }
@@ -569,12 +577,23 @@ export default function App() {
 
                     <div
                       className={cn(
-                        'message-bubble whitespace-pre-wrap break-words',
+                        'message-bubble break-words',
                         isYou ? 'user' : isG ? 'grok' : 'other',
                         isSys && 'bg-transparent border border-border/50 text-muted text-xs py-1 px-3'
                       )}
                     >
-                      {m.content}
+                      <div className="markdown-content">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ ...props }) => (
+                              <a {...props} target="_blank" rel="noopener noreferrer" className="underline" />
+                            )
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -604,13 +623,36 @@ export default function App() {
           {/* Input */}
           <div className="border-t border-border p-4 md:p-5 bg-bg-elev shrink-0">
             <div className="max-w-[1080px] mx-auto">
+              {/* Fancy / Markdown mode toggle - modern pill style */}
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-[10px] uppercase tracking-[1px] text-muted">Message</span>
+                <button
+                  type="button"
+                  onClick={() => setIsMarkdownMode(!isMarkdownMode)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all active:scale-[0.985]',
+                    isMarkdownMode 
+                      ? 'bg-accent text-black' 
+                      : 'bg-bg-card border border-border text-muted hover:text-foreground hover:border-accent/50'
+                  )}
+                  title={isMarkdownMode 
+                    ? 'Disable rich formatting (markdown). Enter will send again.' 
+                    : 'Enable rich formatting (markdown). Enter will add new lines instead of sending. Click Send button to send.'}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {isMarkdownMode ? 'Rich text' : 'Plain text'}
+                </button>
+              </div>
+
               <div className="input-area flex items-end gap-2">
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={handleInputChange}
                   onKeyDown={handleInputKey}
-                  placeholder="Type your thoughts… (Shift+Enter for newline)"
+                  placeholder={isMarkdownMode 
+                    ? "Write with markdown... **bold**, *italic*, `code`, - lists, etc. (Enter = new line)" 
+                    : "Type your thoughts… (Shift+Enter for newline)"}
                   rows={1}
                   className="flex-1 bg-transparent resize-none outline-none text-[15px] max-h-[140px] py-2.5 px-3 placeholder:text-muted"
                   style={{ fieldSizing: 'content' as any }}
@@ -619,11 +661,26 @@ export default function App() {
                   onClick={sendMessage}
                   disabled={!canSend}
                   className="btn btn-primary h-10 w-10 p-0 rounded-2xl shrink-0"
-                  title="Send (Enter)"
+                  title={isMarkdownMode ? "Send fancy message (click button, or Ctrl/Cmd+Enter)" : "Send (Enter)"}
                 >
                   <Send className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Live preview when in fancy markdown mode */}
+              {isMarkdownMode && input.trim() && (
+                <div className="mt-3 rounded-2xl border border-border bg-bg-card p-3 max-h-48 overflow-auto">
+                  <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted">
+                    <span>Preview</span>
+                  </div>
+                  <div className="markdown-content text-sm leading-relaxed">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {input}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
               <div className="text-[10px] text-muted mt-1.5 px-1 flex justify-between">
                 <div>
                   {you && <span>Your lens: <span className="text-accent/80">{you.persona.slice(0, 70)}{you.persona.length > 70 ? '…' : ''}</span></span>}

@@ -88,6 +88,85 @@ body {
   @apply fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4;
 }
 
+/* Stylish markdown rendering for chat messages and previews */
+.markdown-content {
+  font-size: inherit;
+  line-height: 1.5;
+}
+
+.markdown-content p {
+  margin: 0 0 0.5em 0;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content strong,
+.markdown-content b {
+  font-weight: 600;
+}
+
+.markdown-content em,
+.markdown-content i {
+  font-style: italic;
+}
+
+.markdown-content code {
+  background-color: rgba(255, 255, 255, 0.08);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.markdown-content pre {
+  background-color: rgba(0, 0, 0, 0.35);
+  padding: 0.75em 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+  font-size: 0.85em;
+}
+
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.25em;
+  margin: 0.4em 0;
+}
+
+.markdown-content li {
+  margin-bottom: 0.2em;
+}
+
+.markdown-content a {
+  color: #67e8f9; /* nice neon accent */
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid rgba(255,255,255,0.2);
+  padding-left: 0.75em;
+  margin: 0.5em 0;
+  color: #a1a1aa;
+}
+
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+}
+
+.markdown-content h1 { font-size: 1.1em; }
+.markdown-content h2 { font-size: 1.0em; }
+.markdown-content h3 { font-size: 0.95em; }
+
 .modal-content {
   @apply bg-bg-elev border border-border rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col;
 }
